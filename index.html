@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annash Student System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; color: #334155; }
+        
+        /* Animations */
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; opacity: 0; transform: translateY(15px); }
+        @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+
+        /* Calendar & Print Styles */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day-cell { min-height: 80px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; font-size: 0.8rem; }
+        .event-chip { padding: 2px 6px; border-radius: 4px; color: white; font-size: 0.65rem; margin-top: 2px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+
+        @media print {
+            body { background: white; -webkit-print-color-adjust: exact; }
+            .no-print, nav, #toast, .login-wrap { display: none !important; }
+            #page-admin { display: block !important; padding: 0 !important; }
+            .print-header { display: block !important; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+            .admin-card { border: 1px solid #ddd; box-shadow: none; break-inside: avoid; }
+            canvas { max-height: 300px !important; }
+        }
+        .print-header { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="print-header text-center">
+        <h1 class="text-2xl font-bold uppercase">Laporan Aktivitas Sekolah</h1>
+        <p class="text-sm">Dicetak otomatis oleh Sistem Informasi Terintegrasi</p>
+    </div>
+
+    <div id="toast" class="fixed top-6 right-6 z-50 transform translate-x-full transition-all duration-300 no-print">
+        <div class="bg-slate-900 text-white px-5 py-3 rounded-lg shadow-xl flex items-center gap-3">
+            <i class="fas fa-bell text-yellow-400"></i>
+            <span id="toast-msg" class="text-sm font-semibold">Notification</span>
+        </div>
+    </div>
+
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 no-print shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <img src="https://annash.or.id/wp-content/uploads/2020/12/cropped-Artboard-1-IT-HUMAS.png" alt="Logo IT Humas" class="h-12 object-contain">
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="user-display" class="hidden text-right">
+                    <p id="nav-name" class="text-sm font-bold text-slate-800">User</p>
+                    <p id="nav-role" class="text-[10px] text-slate-500 font-bold uppercase">Role</p>
+                </div>
+                <button onclick="logout()" class="text-slate-400 hover:text-red-500 transition" title="Logout tanpa reset data"><i class="fas fa-power-off"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="page-login" class="min-h-[80vh] flex items-center justify-center p-4 fade-in no-print login-wrap">
+        <div class="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full">
+            <h1 class="text-3xl font-extrabold text-center text-slate-800 mb-2">Portal Login</h1>
+            <p class="text-center text-slate-400 mb-8 text-sm">Silakan pilih role pengguna untuk demo</p>
+            
+            <div class="space-y-3">
+                <button onclick="handleLogin('student')" class="w-full p-4 border rounded-xl hover:bg-blue-50 hover:border-blue-500 transition flex items-center gap-4 group">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition"><i class="fas fa-user-graduate"></i></div>
+                    <div class="text-left"><h3 class="font-bold text-slate-700">Siswa (Aldi)</h3><p class="text-xs text-slate-400">Pinjam buku & Izin lengkap</p></div>
+                </button>
+                <button onclick="handleLogin('teacher')" class="w-full p-4 border rounded-xl hover:bg-emerald-50 hover:border-emerald-500 transition flex items-center gap-4 group">
+                    <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition"><i class="fas fa-chalkboard-teacher"></i></div>
+                    <div class="text-left"><h3 class="font-bold text-slate-700">Guru (Pak Budi)</h3><p class="text-xs text-slate-400">Approval & Cek Notes Siswa</p></div>
+                </button>
+                <button onclick="handleLogin('admin')" class="w-full p-4 border rounded-xl hover:bg-slate-100 hover:border-slate-800 transition flex items-center gap-4 group">
+                    <div class="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center group-hover:bg-slate-800 group-hover:text-white transition"><i class="fas fa-chart-pie"></i></div>
+                    <div class="text-left"><h3 class="font-bold text-slate-700">Administrator</h3><p class="text-xs text-slate-400">Dashboard & Print Laporan</p></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-student" class="hidden max-w-xl mx-auto p-6 fade-in">
+        <div id="student-menu" class="grid grid-cols-2 gap-4 mb-8">
+            <div onclick="toggleStudent('book')" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition cursor-pointer text-center group">
+                <div class="w-14 h-14 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl group-hover:bg-blue-500 group-hover:text-white transition"><i class="fas fa-book"></i></div>
+                <h3 class="font-bold text-slate-700">Pinjam Buku</h3>
+            </div>
+            <div onclick="toggleStudent('leave')" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg transition cursor-pointer text-center group">
+                <div class="w-14 h-14 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl group-hover:bg-rose-500 group-hover:text-white transition"><i class="fas fa-file-medical"></i></div>
+                <h3 class="font-bold text-slate-700">Form Izin</h3>
+            </div>
+        </div>
+
+        <div id="student-home-history">
+            <h3 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fas fa-history text-slate-400"></i> Riwayat Pengajuan Saya</h3>
+            <div id="student-history-list" class="space-y-3">
+                </div>
+        </div>
+
+        <div id="section-book" class="hidden">
+            <button onclick="resetStudent()" class="mb-4 text-sm font-bold text-slate-500 hover:text-blue-600"><i class="fas fa-arrow-left mr-2"></i>Kembali</button>
+            <h2 class="text-xl font-bold mb-4">Katalog Buku</h2>
+            <div class="space-y-3" id="book-list"></div>
+        </div>
+
+        <div id="section-leave" class="hidden">
+            <button onclick="resetStudent()" class="mb-4 text-sm font-bold text-slate-500 hover:text-blue-600"><i class="fas fa-arrow-left mr-2"></i>Kembali</button>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h2 class="text-xl font-bold mb-4 text-rose-600">Form Izin / Sakit</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Tanggal</label>
+                        <input type="date" id="input-date" class="w-full border border-slate-200 bg-slate-50 p-3 rounded-lg text-sm font-bold text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Kategori</label>
+                        <select id="input-category" class="w-full border border-slate-200 bg-slate-50 p-3 rounded-lg text-sm font-bold text-slate-700">
+                            <option value="Sakit">Sakit</option>
+                            <option value="Izin">Izin Keluarga</option>
+                            <option value="Dispen">Dispensasi Lomba</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Keterangan Detail (Notes)</label>
+                        <textarea id="input-note" rows="3" class="w-full border border-slate-200 bg-slate-50 p-3 rounded-lg text-sm" placeholder="Contoh: Demam tinggi sejak semalam / Lomba Futsal di GOR"></textarea>
+                    </div>
+                    <button onclick="submitLeave()" class="w-full bg-rose-600 text-white py-3 rounded-xl font-bold hover:bg-rose-700 transition shadow-lg shadow-rose-600/20">KIRIM PENGAJUAN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-teacher" class="hidden max-w-6xl mx-auto p-6 fade-in">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold mb-4 flex justify-between items-center">
+                        Inbox Masuk <span id="badge-count" class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </h3>
+                    <div id="teacher-inbox" class="space-y-3 max-h-[400px] overflow-y-auto pr-1"></div>
+                </div>
+
+                <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                    <h3 class="font-bold text-sm text-slate-500 mb-3 uppercase tracking-wider">Riwayat Approval Anda</h3>
+                    <div id="teacher-history" class="space-y-2 text-sm text-slate-600 max-h-[300px] overflow-y-auto">
+                        <div class="text-xs text-slate-400 italic">Belum ada aktivitas.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-full">
+                    <h3 class="font-bold mb-4 text-xl"><i class="fas fa-calendar-alt text-blue-500 mr-2"></i>Kalender Kelas (Januari 2026)</h3>
+                    <div class="grid grid-cols-7 mb-2 text-center text-xs font-bold text-slate-400 bg-slate-50 py-2 rounded-lg">
+                        <div>SEN</div><div>SEL</div><div>RAB</div><div>KAM</div><div>JUM</div><div>SAB</div><div>MIN</div>
+                    </div>
+                    <div id="calendar-grid" class="calendar-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-admin" class="hidden max-w-7xl mx-auto p-6 fade-in">
+        <div class="flex justify-between items-end mb-8 no-print">
+            <div>
+                <h2 class="text-3xl font-extrabold text-slate-800">Executive Dashboard</h2>
+                <p class="text-slate-500">Laporan real-time statistik sekolah.</p>
+            </div>
+            <button onclick="printReport()" class="bg-slate-800 hover:bg-black text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition shadow-lg">
+                <i class="fas fa-print"></i> CETAK LAPORAN
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500 admin-card">
+                <p class="text-xs text-slate-400 font-bold uppercase">Total Request</p>
+                <h3 class="text-4xl font-bold text-slate-800" id="adm-total">0</h3>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500 admin-card">
+                <p class="text-xs text-slate-400 font-bold uppercase">Disetujui</p>
+                <h3 class="text-4xl font-bold text-emerald-600" id="adm-approved">0</h3>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-rose-500 admin-card">
+                <p class="text-xs text-slate-400 font-bold uppercase">Total Izin/Sakit</p>
+                <h3 class="text-4xl font-bold text-rose-600" id="adm-leave">0</h3>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 admin-card">
+                <h4 class="font-bold mb-4 text-slate-700">Komposisi Aktivitas</h4>
+                <div class="h-64"><canvas id="chartType"></canvas></div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 admin-card">
+                <div class="p-4 bg-yellow-50 rounded-lg text-sm text-yellow-700">
+                    <strong>Catatan Admin:</strong> Data di bawah ini adalah log mentah dari database untuk keperluan audit.
+                </div>
+                <table class="w-full text-sm text-left mt-4">
+                    <thead class="bg-slate-100 font-bold text-slate-600">
+                        <tr><th class="p-3">Waktu</th><th class="p-3">User</th><th class="p-3">Tipe</th><th class="p-3">Status</th></tr>
+                    </thead>
+                    <tbody id="admin-table-body" class="divide-y"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === GLOBAL VARIABLE (DATABASE SEMENTARA) ===
+        // Data tersimpan di sini selama browser tidak di-refresh total
+        const db = {
+            transactions: [
+                { id: 1, type: 'book', name: 'Aldi', category: 'Buku', note: 'Pinjam Algoritma Dasar', date: '2026-01-10', status: 'Approved', timestamp: '08:00' },
+                { id: 2, type: 'leave', name: 'Bela', category: 'Sakit', note: 'Demam Berdarah dirawat di RS', date: '2026-01-12', status: 'Pending', timestamp: '09:30' }
+            ],
+            books: [
+                { id: 101, title: 'Bisnis Digital', stock: 1, total: 1 },
+                { id: 102, title: 'Web Programming', stock: 5, total: 5 },
+                { id: 103, title: 'UI/UX Design', stock: 3, total: 3 }
+            ]
+        };
+        let currentUser = null;
+        let charts = {};
+
+        // === CORE FUNCTIONS ===
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('translate-x-full');
+            setTimeout(() => t.classList.add('translate-x-full'), 3000);
+        }
+
+        function handleLogin(role) {
+            const names = { student: 'Aldi', teacher: 'Pak Budi', admin: 'Administrator' };
+            currentUser = { role: role, name: names[role] };
+            
+            document.getElementById('user-display').classList.remove('hidden');
+            document.getElementById('nav-name').innerText = currentUser.name;
+            document.getElementById('nav-role').innerText = role;
+            
+            document.getElementById('page-login').classList.add('hidden');
+
+            if (role === 'student') {
+                document.getElementById('page-student').classList.remove('hidden');
+                resetStudent();
+            } else if (role === 'teacher') {
+                document.getElementById('page-teacher').classList.remove('hidden');
+                renderTeacher();
+            } else {
+                document.getElementById('page-admin').classList.remove('hidden');
+                renderAdmin();
+            }
+        }
+
+        function logout() { 
+            // LOGOUT TANPA RESET DATA DB
+            currentUser = null;
+            document.getElementById('user-display').classList.add('hidden');
+            
+            document.getElementById('page-student').classList.add('hidden');
+            document.getElementById('page-teacher').classList.add('hidden');
+            document.getElementById('page-admin').classList.add('hidden');
+            
+            document.getElementById('page-login').classList.remove('hidden');
+        }
+
+        // === STUDENT LOGIC ===
+        function toggleStudent(view) {
+            document.getElementById('student-menu').classList.add('hidden');
+            document.getElementById('student-home-history').classList.add('hidden');
+            if(view === 'book') {
+                document.getElementById('section-book').classList.remove('hidden');
+                renderBookList();
+            } else {
+                document.getElementById('section-leave').classList.remove('hidden');
+            }
+        }
+
+        function resetStudent() {
+            document.getElementById('section-book').classList.add('hidden');
+            document.getElementById('section-leave').classList.add('hidden');
+            document.getElementById('student-menu').classList.remove('hidden');
+            document.getElementById('student-home-history').classList.remove('hidden');
+            renderStudentHistory();
+        }
+
+        function renderBookList() {
+            const el = document.getElementById('book-list');
+            el.innerHTML = '';
+            db.books.forEach(b => {
+                const borrowed = db.transactions.filter(t => t.note.includes(b.title) && t.status !== 'Rejected').length;
+                const sisa = b.total - borrowed;
+                const isHabis = sisa <= 0;
+                
+                el.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center ${isHabis ? 'opacity-50' : ''}">
+                        <div><h4 class="font-bold">${b.title}</h4><p class="text-xs ${isHabis?'text-red-500':'text-green-500'} font-bold">Stok: ${isHabis?0:sisa}</p></div>
+                        <button onclick="reqBook('${b.title}')" ${isHabis?'disabled':''} class="px-4 py-2 rounded-lg text-xs font-bold ${isHabis?'bg-slate-200 text-slate-400':'bg-blue-600 text-white'}">${isHabis?'HABIS':'PINJAM'}</button>
+                    </div>
+                `;
+            });
+        }
+
+        function reqBook(title) {
+            db.transactions.unshift({
+                id: Date.now(), type: 'book', name: currentUser.name, category: 'Buku', 
+                note: `Pinjam buku ${title}`, date: new Date().toISOString().split('T')[0], status: 'Pending', timestamp: new Date().toLocaleTimeString()
+            });
+            showToast('Request pinjam buku terkirim!');
+            resetStudent();
+        }
+
+        function submitLeave() {
+            const date = document.getElementById('input-date').value;
+            const cat = document.getElementById('input-category').value;
+            const note = document.getElementById('input-note').value;
+
+            if(!date || !note) return alert("Mohon lengkapi data tanggal dan keterangan!");
+
+            db.transactions.unshift({
+                id: Date.now(), type: 'leave', name: currentUser.name, category: cat,
+                note: note, date: date, status: 'Pending', timestamp: new Date().toLocaleTimeString()
+            });
+            showToast('Surat izin berhasil dikirim!');
+            resetStudent();
+        }
+
+        function renderStudentHistory() {
+            const el = document.getElementById('student-history-list');
+            const myTx = db.transactions.filter(t => t.name === currentUser.name);
+            el.innerHTML = '';
+
+            if (myTx.length === 0) {
+                el.innerHTML = '<div class="text-center text-slate-400 text-sm py-4 bg-white rounded-xl border border-dashed border-slate-200">Belum ada riwayat aktivitas.</div>';
+                return;
+            }
+
+            myTx.forEach(t => {
+                let badge = t.status === 'Pending' ? 'bg-amber-100 text-amber-600' : (t.status === 'Approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600');
+                let icon = t.type === 'book' ? 'fa-book text-blue-500' : 'fa-file-medical text-rose-500';
+                
+                el.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center"><i class="fas ${icon}"></i></div>
+                                <div>
+                                    <p class="font-bold text-sm text-slate-700">${t.category}</p>
+                                    <p class="text-xs text-slate-400">${t.date}</p>
+                                </div>
+                            </div>
+                            <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${badge}">${t.status}</span>
+                        </div>
+                        <div class="bg-slate-50 p-2 rounded text-xs text-slate-600 italic">
+                            "${t.note}"
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // === TEACHER LOGIC ===
+        function renderTeacher() {
+            const inboxEl = document.getElementById('teacher-inbox');
+            const pending = db.transactions.filter(t => t.status === 'Pending');
+            document.getElementById('badge-count').innerText = pending.length;
+            
+            inboxEl.innerHTML = pending.length === 0 ? '<div class="text-center text-slate-400 text-sm py-4">Tidak ada tugas baru.</div>' : '';
+
+            pending.forEach(t => {
+                inboxEl.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border-l-4 ${t.type==='book'?'border-blue-500':'border-rose-500'} shadow-sm mb-3">
+                        <div class="flex justify-between font-bold text-sm mb-1">
+                            <span>${t.name}</span>
+                            <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">${t.category.toUpperCase()}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-2">${t.date}</p>
+                        <div class="bg-yellow-50 p-2 rounded border border-yellow-100 text-xs text-slate-700 mb-3">
+                            <strong>Note:</strong> "${t.note}"
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="processTx(${t.id}, 'Rejected')" class="flex-1 py-2 text-xs font-bold text-red-500 border border-red-100 rounded hover:bg-red-50">TOLAK</button>
+                            <button onclick="processTx(${t.id}, 'Approved')" class="flex-1 py-2 text-xs font-bold text-white bg-slate-800 rounded hover:bg-black">SETUJUI</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const historyEl = document.getElementById('teacher-history');
+            const processed = db.transactions.filter(t => t.status !== 'Pending'); 
+            
+            historyEl.innerHTML = processed.length === 0 ? '<div class="text-xs text-slate-400 italic">Belum ada aktivitas.</div>' : '';
+            
+            processed.slice(0, 5).forEach(t => { 
+                let color = t.status === 'Approved' ? 'text-green-600' : 'text-red-500';
+                historyEl.innerHTML += `
+                    <div class="border-b border-slate-200 pb-2 mb-2 last:border-0">
+                        <p class="font-bold text-slate-700">${t.name} <span class="font-normal text-slate-400">(${t.category})</span></p>
+                        <p class="text-xs">Status: <span class="font-bold ${color}">${t.status}</span></p>
+                    </div>
+                `;
+            });
+
+            renderCalendar();
+        }
+
+        function processTx(id, status) {
+            const idx = db.transactions.findIndex(t => t.id === id);
+            if(idx !== -1) {
+                db.transactions[idx].status = status;
+                showToast(`Pengajuan berhasil di-${status}`);
+                renderTeacher();
+            }
+        }
+
+        function renderCalendar() {
+            const el = document.getElementById('calendar-grid');
+            el.innerHTML = '';
+            for(let i=0; i<3; i++) el.innerHTML += '<div></div>'; 
+            
+            for(let d=1; d<=31; d++) {
+                let dateStr = `2026-01-${d < 10 ? '0'+d : d}`;
+                let events = db.transactions.filter(t => t.type === 'leave' && t.status === 'Approved' && t.date === dateStr);
+                
+                let chips = events.map(e => {
+                    let color = e.category === 'Sakit' ? 'bg-rose-500' : (e.category === 'Dispen' ? 'bg-purple-500' : 'bg-amber-500');
+                    return `<span class="event-chip ${color}">${e.name}</span>`;
+                }).join('');
+                
+                el.innerHTML += `<div class="day-cell"><div class="text-right text-xs font-bold text-slate-300">${d}</div>${chips}</div>`;
+            }
+        }
+
+        // === ADMIN LOGIC ===
+        function renderAdmin() {
+            document.getElementById('adm-total').innerText = db.transactions.length;
+            document.getElementById('adm-approved').innerText = db.transactions.filter(t => t.status === 'Approved').length;
+            document.getElementById('adm-leave').innerText = db.transactions.filter(t => t.type === 'leave').length;
+
+            if(charts.type) charts.type.destroy();
+            const ctx = document.getElementById('chartType').getContext('2d');
+            charts.type = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Buku', 'Sakit', 'Izin', 'Dispen'],
+                    datasets: [{
+                        data: [
+                            db.transactions.filter(t=>t.type==='book').length,
+                            db.transactions.filter(t=>t.category==='Sakit').length,
+                            db.transactions.filter(t=>t.category==='Izin').length,
+                            db.transactions.filter(t=>t.category==='Dispen').length
+                        ],
+                        backgroundColor: ['#3b82f6', '#f43f5e', '#f59e0b', '#a855f7']
+                    }]
+                }
+            });
+
+            const tbody = document.getElementById('admin-table-body');
+            tbody.innerHTML = '';
+            db.transactions.forEach(t => {
+                tbody.innerHTML += `<tr><td class="p-3">${t.timestamp}</td><td class="p-3 font-bold">${t.name}</td><td class="p-3">${t.category}</td><td class="p-3 font-bold ${t.status==='Approved'?'text-green-600':(t.status==='Pending'?'text-amber-500':'text-red-500')}">${t.status}</td></tr>`;
+            });
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        // Init Date
+        document.getElementById('input-date').value = '2026-01-15';
+    </script>
+</body>
+</html>
